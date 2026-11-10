@@ -22,7 +22,7 @@ The page is plain HTML/CSS/JS on **GitHub Pages**. Sign-ups are saved in a **Goo
 2. Set **Execute as: Me** and **Who has access: Anyone**.
 3. Click **Deploy**, then **Authorize access** and choose your Google account.
    Google warns that the app is unverified, because you wrote it. Click **Advanced → Go to (project name) (unsafe) → Allow**.
-4. Copy the **Web app URL** (it ends in `/exec`).
+4. Copy the **Web app URL** (it ends in `/exec`). (https://script.google.com/macros/s/AKfycbwxS8wBJgu4yQ1EuiZ_nVsK2OwB3DEFbbGp5uP9EbfUiMCenJglqoWRm4TYdHIDxEd_/exec)
 5. Paste the URL into your browser. You should see `{"ok":true,"performances":[],"creches":0}`. Two new tabs, **Performances** and **Creches**, appear in the Sheet.
 
 ## 3. Point the site at the script
