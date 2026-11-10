@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Community Creche</title>
+  <meta name="description" content="Community Creche: Thursday, December 17, noon to 9:00 PM, 1260 South 400 West, Orem, Utah. See nativity displays, enjoy hot cocoa, hear musical performances. Sign up to perform or to bring a creche.">
+  <meta name="theme-color" content="#7a1822">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 4l5 23 23 5-23 5-5 23-5-23-23-5 23-5z' fill='%237a1822'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Display&family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Shared ornaments, drawn once and reused with <use>. -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <symbol id="corner" viewBox="0 0 100 100">
+        <g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M16 72 C16 38 38 16 72 16"/>
+          <path d="M72 16 C84 16 88 28 80 32 C74 35 68 29 73 24"/>
+          <path d="M16 72 C16 84 28 88 32 80 C35 74 29 68 24 73"/>
+          <path d="M32 58 C32 44 44 32 58 32"/>
+          <path d="M44 10 C50 4 58 6 58 12 C58 17 52 17 52 13"/>
+          <path d="M10 44 C4 50 6 58 12 58 C17 58 17 52 13 52"/>
+        </g>
+        <circle cx="24" cy="24" r="3.2" fill="currentColor"/>
+      </symbol>
+
+      <symbol id="heart" viewBox="0 0 24 22">
+        <path fill="currentColor" d="M12 21C4 14 1 10 1 6.5 1 3.5 3.5 1.5 6.2 1.5c2.4 0 4.6 1.5 5.8 3.7 1.2-2.2 3.4-3.7 5.8-3.7C20.5 1.5 23 3.5 23 6.5 23 10 20 14 12 21z"/>
+      </symbol>
+
+      <g id="flourish-half" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M0 14H112"/>
+        <path d="M112 14C122 14 128 4 140 6 148 8 148 17 141 17 136 17 135 12 139 11"/>
+        <path d="M112 14C122 14 128 24 140 22 148 20 148 11 141 11"/>
+        <path d="M152 14C162 14 170 14 178 14"/>
+      </g>
+      <symbol id="flourish" viewBox="0 0 400 28">
+        <use href="#flourish-half"/>
+        <use href="#flourish-half" transform="translate(400 0) scale(-1 1)"/>
+        <use href="#heart" x="186" y="3" width="28" height="22"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <p class="preview-note" id="preview-note" hidden>Preview mode: nothing entered on this page is saved.</p>
+
+  <main class="sheet">
+    <svg class="corner corner--tl" aria-hidden="true"><use href="#corner"/></svg>
+    <svg class="corner corner--tr" aria-hidden="true"><use href="#corner"/></svg>
+    <svg class="corner corner--bl" aria-hidden="true"><use href="#corner"/></svg>
+    <svg class="corner corner--br" aria-hidden="true"><use href="#corner"/></svg>
+    <svg class="edge-heart edge-heart--top" aria-hidden="true"><use href="#heart"/></svg>
+    <svg class="edge-heart edge-heart--bottom" aria-hidden="true"><use href="#heart"/></svg>
+
+    <!-- ===== Masthead: the flyer ===== -->
+    <header class="masthead">
+      <p class="eyebrow">Sponsored by the Sunset Height Stake</p>
+      <h1 class="title">Community Creche</h1>
+      <p class="tagline">Focus on Christ this Christmas</p>
+      <svg class="flourish" aria-hidden="true"><use href="#flourish"/></svg>
+
+      <div class="invitation">
+        <p>See Nativity displays</p>
+        <p>Enjoy hot cocoa &amp;</p>
+        <p>Hear musical performances</p>
+      </div>
+
+      <dl class="facts">
+        <div>
+          <dt>When</dt>
+          <dd>Thursday, December 17<br>Noon to 9:00 PM</dd>
+        </div>
+        <div>
+          <dt>Where</dt>
+          <dd><a href="https://www.google.com/maps/search/?api=1&amp;query=1260+South+400+West+Orem+Utah">1260 South 400 West<br>Orem, Utah</a></dd>
+        </div>
+      </dl>
+
+      <p class="cta-row">
+        <a class="btn" href="#perform">Sign up to perform</a>
+        <a class="btn btn--ghost" href="#creche">Bring a creche</a>
+      </p>
+
+      <svg class="nativity" viewBox="0 0 280 230" role="img" aria-label="Line drawing of the nativity: Joseph, Mary and the baby Jesus in a stable beneath a star">
+        <g class="star" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+          <path d="M140 8 L145 26 L163 31 L145 36 L140 54 L135 36 L117 31 L135 26 Z"/>
+        </g>
+        <g fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+          <path d="M92 34V46M86 40H98"/>
+          <path d="M194 40V50M189 45H199"/>
+          <path d="M70 62V68M67 65H73"/>
+          <path d="M214 66V72M211 69H217"/>
+        </g>
+        <g fill="var(--paper)" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M40 114L140 68L240 114" fill="none"/>
+          <path d="M52 114L140 76L228 114" fill="none"/>
+          <path d="M64 110V196M216 110V196" fill="none"/>
+          <path d="M22 196H258" fill="none"/>
+          <path d="M34 196C32 184 36 176 44 170M42 196C42 186 48 180 54 178M246 196C248 184 244 176 236 170M238 196C238 186 232 180 226 178" fill="none"/>
+          <!-- Joseph -->
+          <circle cx="100" cy="128" r="8"/>
+          <circle cx="100" cy="128" r="13" fill="none" stroke-dasharray="1 4.2"/>
+          <path d="M88 146C92 139 108 139 112 146L118 196H82Z"/>
+          <path d="M124 134V196" fill="none"/>
+          <!-- Manger -->
+          <path d="M122 184H158L154 190H126Z"/>
+          <path d="M126 184C128 176 152 176 154 184" fill="none"/>
+          <path d="M128 190L122 196M152 190L158 196" fill="none"/>
+          <path d="M140 160V168M131 163L134 170M149 163L146 170" fill="none"/>
+          <!-- Mary -->
+          <circle cx="182" cy="146" r="8"/>
+          <circle cx="182" cy="146" r="13" fill="none" stroke-dasharray="1 4.2"/>
+          <path d="M164 196C162 172 170 156 182 156C194 156 202 172 204 196Z"/>
+          <path d="M174 174C168 180 164 184 160 184" fill="none"/>
+        </g>
+      </svg>
+    </header>
+
+    <!-- ===== Performances ===== -->
+    <section class="section" id="perform" aria-labelledby="perform-title">
+      <svg class="flourish" aria-hidden="true"><use href="#flourish"/></svg>
+      <h2 id="perform-title">Musical performances</h2>
+      <p class="lede">Share a song, a hymn, or a piece on your instrument. Choose any open 15-minute time between noon and 9:00 PM. Each time goes to one person or group, first come, first served.</p>
+      <p class="notice">Names and performances you enter here appear publicly on this page. Phone numbers go only to the organizer.</p>
+
+      <div class="program-bar">
+        <p class="program-count" id="program-count" role="status" aria-live="polite">Checking open times…</p>
+        <label class="toggle">
+          <input type="checkbox" id="only-open">
+          <span>Show open times only</span>
+        </label>
+      </div>
+
+      <div class="program-error" id="program-error" role="alert" hidden>
+        <p>We couldn't load the schedule. Check your connection, then try again.</p>
+        <button type="button" class="btn btn--ghost btn--small" id="retry">Try again</button>
+      </div>
+
+      <div class="program" id="program"></div>
+      <p class="program-empty" id="program-empty" hidden>Every open time has been taken. Thank you, and please come listen.</p>
+    </section>
+
+    <!-- ===== Creches ===== -->
+    <section class="section" id="creche" aria-labelledby="creche-title">
+      <svg class="flourish" aria-hidden="true"><use href="#flourish"/></svg>
+      <h2 id="creche-title">Bring a creche</h2>
+
+      <div class="definition">
+        <p><strong>What's a creche?</strong> A creche (say “kresh”) is a nativity scene: figures of Mary, Joseph, and the baby Jesus at the stable in Bethlehem. Yours can be an heirloom or homemade, tiny or table-sized, and made of anything from olive wood to felt to Legos.</p>
+      </div>
+
+      <p class="count" id="creche-count" role="status" aria-live="polite">&nbsp;</p>
+
+      <form class="form" id="creche-form" novalidate>
+        <div class="field">
+          <label for="c-name">Your name</label>
+          <input id="c-name" name="name" type="text" autocomplete="name" maxlength="80" required>
+        </div>
+        <div class="field field--narrow">
+          <label for="c-count">How many creches will you bring?</label>
+          <input id="c-count" name="count" type="number" inputmode="numeric" min="1" max="50" step="1" value="1" required>
+        </div>
+        <div class="field">
+          <label for="c-phone">Phone number</label>
+          <input id="c-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="25" required aria-describedby="c-phone-hint">
+          <p class="hint" id="c-phone-hint">So the organizer can reach you about drop-off.</p>
+        </div>
+        <p class="hp" aria-hidden="true"><label>Leave this empty <input type="text" name="website" tabindex="-1" autocomplete="off"></label></p>
+        <p class="notice">Only the total number of creches appears on this page. Your name and phone number go only to the organizer.</p>
+        <p class="form-status" id="creche-status" role="status" aria-live="polite"></p>
+        <button class="btn" type="submit">Count me in</button>
+      </form>
+    </section>
+
+    <footer class="closing">
+      <svg class="flourish" aria-hidden="true"><use href="#flourish"/></svg>
+      <p>Focus on Christ this Christmas</p>
+    </footer>
+  </main>
+
+  <!-- ===== Sign-up dialog (performances) ===== -->
+  <dialog id="signup" aria-labelledby="signup-title">
+    <div class="dialog-body">
+      <form id="signup-form" novalidate>
+        <h2 id="signup-title">Sign up for <span id="signup-time"></span></h2>
+        <p class="lede lede--small">One person or group per time. You'll have 15 minutes.</p>
+        <input type="hidden" name="slot">
+        <div class="field">
+          <label for="p-name">Your name or group name</label>
+          <input id="p-name" name="name" type="text" autocomplete="name" maxlength="80" required autofocus>
+        </div>
+        <div class="field">
+          <label for="p-piece">What will you perform? <span class="optional">(optional)</span></label>
+          <input id="p-piece" name="piece" type="text" maxlength="120" placeholder="Piano: O Holy Night">
+        </div>
+        <div class="field">
+          <label for="p-phone">Phone number</label>
+          <input id="p-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="25" required aria-describedby="p-phone-hint">
+          <p class="hint" id="p-phone-hint">Only the organizer sees this.</p>
+        </div>
+        <p class="hp" aria-hidden="true"><label>Leave this empty <input type="text" name="website" tabindex="-1" autocomplete="off"></label></p>
+        <p class="notice">Your name and performance will be shown publicly on this page.</p>
+        <p class="form-status" id="signup-status" role="alert"></p>
+        <div class="dialog-actions">
+          <button class="btn" type="submit" id="signup-submit">Reserve this time</button>
+          <button class="btn btn--ghost" type="button" data-close>Cancel</button>
+        </div>
+      </form>
+
+      <div id="signup-done" hidden>
+        <h2>You're on the program</h2>
+        <p class="done-line"><span id="done-time"></span> · <span id="done-name"></span></p>
+        <p class="lede lede--small">Your name now appears on the schedule. The organizer has your phone number if anything changes.</p>
+        <div class="dialog-actions">
+          <button class="btn" type="button" data-close>Done</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <noscript><p class="noscript">This page needs JavaScript to show the schedule and take sign-ups.</p></noscript>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
