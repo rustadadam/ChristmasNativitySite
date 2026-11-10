@@ -69,22 +69,6 @@ a { color: var(--maroon); text-underline-offset: 0.2em; }
 .corner--bl { bottom: 2px; left: 2px; transform: scaleY(-1); }
 .corner--br { bottom: 2px; right: 2px; transform: scale(-1, -1); }
 
-.edge-heart {
-  position: absolute;
-  left: 50%;
-  width: 26px;
-  height: 22px;
-  margin-left: -13px;
-  padding: 0 5px;
-  box-sizing: content-box;
-  color: var(--maroon);
-  background: var(--paper);
-  transform: translateX(-5px);
-  pointer-events: none;
-}
-.edge-heart--top { top: -2px; transform: translate(-5px, -50%); }
-.edge-heart--bottom { bottom: -2px; transform: translate(-5px, 50%); }
-
 /* ---------- Masthead ---------- */
 
 .masthead { text-align: center; }
