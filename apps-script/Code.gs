@@ -11,11 +11,12 @@
 
 const PERFORMANCES = 'Performances';
 const CRECHES = 'Creches';
+const DECORATIONS = 'Decorations';
 
-// Time grid: 15-minute slots, noon up to (not including) 9:00 PM. Keep in sync with app.js.
+// Time grid: 10-minute slots, noon up to (not including) 9:00 PM. Keep in sync with app.js.
 const FIRST_MIN = 12 * 60;
 const LAST_MIN = 21 * 60;
-const STEP_MIN = 15;
+const STEP_MIN = 10;
 
 const MAX_CRECHES_PER_SIGNUP = 50;
 const CACHE_KEY = 'public-v1';
@@ -30,6 +31,10 @@ const SHEETS = {
   [CRECHES]: {
     headers: ['Signed up at', 'Name (private)', 'Creches', 'Phone (private)'],
     formats: ['@', '@', '0', '@'],
+  },
+  [DECORATIONS]: {
+    headers: ['Signed up at', 'Name (private)', 'Bringing (private)', 'Phone (private)'],
+    formats: ['@', '@', '@', '@'],
   },
 };
 
@@ -61,6 +66,7 @@ function doPost(e) {
   try {
     if (body.type === 'performance') return respond_(addPerformance_(body));
     if (body.type === 'creche') return respond_(addCreche_(body));
+    if (body.type === 'decorations') return respond_(addDecorations_(body));
     return respond_(fail_('invalid'));
   } catch (err) {
     console.error(err);
@@ -95,21 +101,29 @@ function publicData_() {
 
 // ---------- Writes (always called while holding the script lock) ----------
 
+// One signup can reserve several times. Each time becomes its own row, so the public read stays one-row-per-slot.
+// All-or-nothing: if any chosen time is already taken, nothing is saved and the taken times are returned.
 function addPerformance_(b) {
-  const slot = String(b.slot || '').trim();
-  if (slotLabels_().indexOf(slot) < 0) return fail_('invalid');
+  const requested = Array.isArray(b.slots) ? b.slots : [b.slot];
+  const valid = slotLabels_();
+  const slots = [];
+  requested.forEach(function (s) {
+    const slot = String(s || '').trim();
+    if (slots.indexOf(slot) < 0) slots.push(slot);
+  });
+  if (!slots.length || slots.some(function (s) { return valid.indexOf(s) < 0; })) return fail_('invalid');
 
   const name = clean_(b.name, 80);
   const piece = clean_(b.piece, 120);
   const phone = phone_(b.phone);
   if (!name || !phone) return fail_('invalid');
 
-  const taken = rows_(PERFORMANCES).some(function (r) { return String(r[0]).trim() === slot; });
-  if (taken) return fail_('taken');
+  const booked = rows_(PERFORMANCES).map(function (r) { return String(r[0]).trim(); });
+  const taken = slots.filter(function (s) { return booked.indexOf(s) >= 0; });
+  if (taken.length) return { ok: false, error: 'taken', taken: taken };
 
-  sheet_(PERFORMANCES).appendRow([slot, name, piece, phone, now_()]);
-  SpreadsheetApp.flush();
-  CacheService.getScriptCache().remove(CACHE_KEY);
+  const stamp = now_();
+  saveRows_(PERFORMANCES, slots.map(function (slot) { return [slot, name, piece, phone, stamp]; }));
   return { ok: true };
 }
 
@@ -120,13 +134,28 @@ function addCreche_(b) {
   if (!name || !phone) return fail_('invalid');
   if (!(count >= 1 && count <= MAX_CRECHES_PER_SIGNUP)) return fail_('invalid');
 
-  sheet_(CRECHES).appendRow([now_(), name, count, phone]);
-  SpreadsheetApp.flush();
-  CacheService.getScriptCache().remove(CACHE_KEY);
+  saveRows_(CRECHES, [[now_(), name, count, phone]]);
+  return { ok: true };
+}
+
+function addDecorations_(b) {
+  const name = clean_(b.name, 80);
+  const items = clean_(b.items, 120);
+  const phone = phone_(b.phone);
+  if (!name || !phone) return fail_('invalid');
+
+  saveRows_(DECORATIONS, [[now_(), name, items, phone]]);
   return { ok: true };
 }
 
 // ---------- Helpers ----------
+
+function saveRows_(sheetName, rows) {
+  const sh = sheet_(sheetName);
+  rows.forEach(function (row) { sh.appendRow(row); });
+  SpreadsheetApp.flush();
+  CacheService.getScriptCache().remove(CACHE_KEY);
+}
 
 function slotLabels_() {
   const labels = [];

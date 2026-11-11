@@ -137,6 +137,14 @@ a { color: var(--maroon); text-underline-offset: 0.2em; }
   margin: 0 0 2.5rem;
 }
 
+.contact {
+  margin: 0 0 2.25rem;
+  font-size: 0.95rem;
+  font-style: italic;
+  color: var(--muted);
+}
+.closing .contact { margin: 0 0 0.75rem; }
+
 .nativity {
   display: block;
   width: min(100%, 17rem);
@@ -288,6 +296,43 @@ dialog h2 { font-size: 1.85rem; }
   transition: background-color 0.15s, color 0.15s;
 }
 .slot-btn:hover { background: var(--maroon); color: var(--paper); }
+
+.slot-btn.is-selected { color: var(--paper); background: var(--maroon); }
+
+/* Sticks to the bottom of the screen while the schedule is in view, then scrolls away with it. */
+.select-bar {
+  position: sticky;
+  bottom: 0.75rem;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-top: 1.25rem;
+  padding: 0.75rem 1rem;
+  background: var(--paper);
+  border: 1.5px solid var(--maroon);
+  box-shadow: 0 10px 28px -10px rgba(74, 11, 19, 0.55);
+}
+.select-summary { flex: 1 1 8rem; margin: 0; font-weight: 700; color: var(--maroon-deep); }
+
+.chosen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+  margin: 0 0 0.9rem;
+  padding: 0;
+  list-style: none;
+}
+.chosen li {
+  padding: 0.2em 0.7em;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--maroon-deep);
+  background: var(--blush);
+  border: 1px solid var(--rule);
+}
 
 .skeleton {
   display: inline-block;

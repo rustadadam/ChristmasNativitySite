@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Community Creche</title>
-  <meta name="description" content="Community Creche: Thursday, December 17, noon to 9:00 PM, 1260 South 400 West, Orem, Utah. See nativity displays, enjoy hot cocoa, hear musical performances. Sign up to perform or to bring a creche.">
+  <meta name="description" content="Community Creche: Thursday, December 17, noon to 9:00 PM, 1260 South 400 West, Orem, Utah. See nativity displays, enjoy hot cocoa, hear musical performances. Sign up to perform sacred music, bring a creche, or drop off Christmas decorations.">
   <meta name="theme-color" content="#7a1822">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 4l5 23 23 5-23 5-5 23-5-23-23-5 23-5z' fill='%237a1822'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -80,9 +80,11 @@
       </dl>
 
       <p class="cta-row">
-        <a class="btn" href="#perform">Sign up to perform</a>
-        <a class="btn btn--ghost" href="#creche">Bring a creche</a>
+        <a class="btn" href="#creche">Bring a creche</a>
+        <a class="btn btn--ghost" href="#decorations">Drop off decorations</a>
+        <a class="btn btn--ghost" href="#perform">Sign up to perform</a>
       </p>
+      <p class="contact">Questions? Call <a href="tel:+18013109156">(801) 310-9156</a> or email <a href="mailto:Janalkeen@hotmail.com">Janalkeen@hotmail.com</a>.</p>
 
       <svg class="nativity" viewBox="0 0 280 230" role="img" aria-label="Line drawing of the nativity: Joseph, Mary and the baby Jesus in a stable beneath a star">
         <g class="star" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
@@ -117,30 +119,6 @@
       </svg>
     </header>
 
-    <!-- ===== Performances ===== -->
-    <section class="section" id="perform" aria-labelledby="perform-title">
-      <svg class="flourish" aria-hidden="true"><use href="#flourish"/></svg>
-      <h2 id="perform-title">Musical performances</h2>
-      <p class="lede">Share a song, a hymn, or a piece on your instrument. Choose any open 15-minute time between noon and 9:00 PM. Each time goes to one person or group, first come, first served.</p>
-      <p class="notice">Names and performances you enter here appear publicly on this page. Phone numbers go only to the organizer.</p>
-
-      <div class="program-bar">
-        <p class="program-count" id="program-count" role="status" aria-live="polite">Checking open times…</p>
-        <label class="toggle">
-          <input type="checkbox" id="only-open">
-          <span>Show open times only</span>
-        </label>
-      </div>
-
-      <div class="program-error" id="program-error" role="alert" hidden>
-        <p>We couldn't load the schedule. Check your connection, then try again.</p>
-        <button type="button" class="btn btn--ghost btn--small" id="retry">Try again</button>
-      </div>
-
-      <div class="program" id="program"></div>
-      <p class="program-empty" id="program-empty" hidden>Every open time has been taken. Thank you, and please come listen.</p>
-    </section>
-
     <!-- ===== Creches ===== -->
     <section class="section" id="creche" aria-labelledby="creche-title">
       <svg class="flourish" aria-hidden="true"><use href="#flourish"/></svg>
@@ -168,13 +146,71 @@
         </div>
         <p class="hp" aria-hidden="true"><label>Leave this empty <input type="text" name="website" tabindex="-1" autocomplete="off"></label></p>
         <p class="notice">Only the total number of creches appears on this page. Your name and phone number go only to the organizer.</p>
-        <p class="form-status" id="creche-status" role="status" aria-live="polite"></p>
+        <p class="form-status" role="status" aria-live="polite"></p>
         <button class="btn" type="submit">Count me in</button>
       </form>
     </section>
 
+    <!-- ===== Decorations ===== -->
+    <section class="section" id="decorations" aria-labelledby="decorations-title">
+      <svg class="flourish" aria-hidden="true"><use href="#flourish"/></svg>
+      <h2 id="decorations-title">Bring Christmas decorations</h2>
+      <p class="lede">Have Christmas decorations to share? Drop them off <strong>8 to 11 AM on Thursday, December 17</strong>. Let us know you're coming so we can plan on you.</p>
+
+      <form class="form" id="decorations-form" novalidate>
+        <div class="field">
+          <label for="d-name">Your name</label>
+          <input id="d-name" name="name" type="text" autocomplete="name" maxlength="80" required>
+        </div>
+        <div class="field">
+          <label for="d-items">What will you bring? <span class="optional">(optional)</span></label>
+          <input id="d-items" name="items" type="text" maxlength="120" placeholder="Two evergreen wreaths and a string of lights">
+        </div>
+        <div class="field">
+          <label for="d-phone">Phone number</label>
+          <input id="d-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="25" required aria-describedby="d-phone-hint">
+          <p class="hint" id="d-phone-hint">So the organizer can reach you about drop-off.</p>
+        </div>
+        <p class="hp" aria-hidden="true"><label>Leave this empty <input type="text" name="website" tabindex="-1" autocomplete="off"></label></p>
+        <p class="notice">Your name and phone number go only to the organizer.</p>
+        <p class="form-status" role="status" aria-live="polite"></p>
+        <button class="btn" type="submit">Count me in</button>
+      </form>
+    </section>
+
+    <!-- ===== Performances ===== -->
+    <section class="section" id="perform" aria-labelledby="perform-title">
+      <svg class="flourish" aria-hidden="true"><use href="#flourish"/></svg>
+      <h2 id="perform-title">Musical performances</h2>
+      <p class="lede">Share sacred music that is centered on Christ: a hymn, a Christmas carol of the Savior's birth, or an instrumental piece. Choose one or more open 10-minute times between noon and 9:00 PM. Each time goes to one person or group, first come, first served.</p>
+      <p class="notice">Names and performances you enter here appear publicly on this page. Phone numbers go only to the organizer.</p>
+
+      <div class="program-bar">
+        <p class="program-count" id="program-count" role="status" aria-live="polite">Checking open times…</p>
+        <label class="toggle">
+          <input type="checkbox" id="only-open">
+          <span>Show open times only</span>
+        </label>
+      </div>
+
+      <div class="program-error" id="program-error" role="alert" hidden>
+        <p>We couldn't load the schedule. Check your connection, then try again.</p>
+        <button type="button" class="btn btn--ghost btn--small" id="retry">Try again</button>
+      </div>
+
+      <div class="program" id="program"></div>
+      <p class="program-empty" id="program-empty" hidden>Every open time has been taken. Thank you, and please come listen.</p>
+
+      <div class="select-bar" id="select-bar" hidden>
+        <p class="select-summary" id="select-summary" role="status" aria-live="polite"></p>
+        <button class="btn" type="button" id="select-continue">Continue</button>
+        <button class="btn btn--ghost" type="button" id="select-clear">Clear</button>
+      </div>
+    </section>
+
     <footer class="closing">
       <svg class="flourish" aria-hidden="true"><use href="#flourish"/></svg>
+      <p class="contact">Questions? Call <a href="tel:+18013109156">(801) 310-9156</a> or email <a href="mailto:Janalkeen@hotmail.com">Janalkeen@hotmail.com</a>.</p>
       <p>Focus on Christ this Christmas</p>
     </footer>
   </main>
@@ -183,16 +219,17 @@
   <dialog id="signup" aria-labelledby="signup-title">
     <div class="dialog-body">
       <form id="signup-form" novalidate>
-        <h2 id="signup-title">Sign up for <span id="signup-time"></span></h2>
-        <p class="lede lede--small">One person or group per time. You'll have 15 minutes.</p>
-        <input type="hidden" name="slot">
+        <h2 id="signup-title">Reserve your <span id="signup-heading">time</span></h2>
+        <ul class="chosen" id="signup-times" aria-label="Times you chose"></ul>
+        <p class="lede lede--small">One person or group per time. Each time is 10 minutes.</p>
         <div class="field">
           <label for="p-name">Your name or group name</label>
           <input id="p-name" name="name" type="text" autocomplete="name" maxlength="80" required autofocus>
         </div>
         <div class="field">
-          <label for="p-piece">What will you perform? <span class="optional">(optional)</span></label>
-          <input id="p-piece" name="piece" type="text" maxlength="120" placeholder="Piano: O Holy Night">
+          <label for="p-piece">What sacred music will you perform?</label>
+          <input id="p-piece" name="piece" type="text" maxlength="120" required placeholder="Piano: O Holy Night" aria-describedby="p-piece-hint">
+          <p class="hint" id="p-piece-hint">Please choose sacred, Christ-centered music, such as a hymn or a carol about the Savior.</p>
         </div>
         <div class="field">
           <label for="p-phone">Phone number</label>

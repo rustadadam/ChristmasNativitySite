@@ -9,8 +9,8 @@
   // ---------- Time grid (keep in sync with apps-script/Code.gs) ----------
 
   const FIRST_MIN = 12 * 60;
-  const LAST_MIN = 21 * 60; // exclusive: last slot starts at 8:45 PM
-  const STEP_MIN = 15;
+  const LAST_MIN = 21 * 60; // exclusive: last slot starts at 8:50 PM
+  const STEP_MIN = 10;
 
   const slotLabel = (minutes) => {
     const h = Math.floor(minutes / 60);
@@ -28,7 +28,9 @@
     }
     HOURS[HOURS.length - 1].slots.push(slotLabel(m));
   }
-  const TOTAL_SLOTS = HOURS.reduce((n, h) => n + h.slots.length, 0);
+  const ALL_SLOTS = HOURS.flatMap((h) => h.slots);
+  const TOTAL_SLOTS = ALL_SLOTS.length;
+  const listFormat = new Intl.ListFormat('en', { style: 'long', type: 'conjunction' });
 
   // ---------- Data layer: real backend, or in-memory preview when no URL is configured ----------
 
@@ -60,7 +62,7 @@
     const performances = [
       { slot: '12:00 PM', name: 'Sample Family Choir', piece: 'Joy to the World' },
       { slot: '12:30 PM', name: 'Sample Soloist', piece: 'Violin: Silent Night' },
-      { slot: '2:15 PM', name: 'Sample Piano Duo', piece: '' },
+      { slot: '2:10 PM', name: 'Sample Piano Duo', piece: '' },
       { slot: '6:00 PM', name: 'Sample Youth Group', piece: 'Away in a Manger' },
     ];
     let creches = 3;
@@ -73,9 +75,10 @@
       async send(payload) {
         await wait(600);
         if (payload.type === 'performance') {
-          if (performances.some((p) => p.slot === payload.slot)) return { ok: false, error: 'taken' };
-          performances.push({ slot: payload.slot, name: payload.name, piece: payload.piece || '' });
-        } else {
+          const taken = payload.slots.filter((slot) => performances.some((p) => p.slot === slot));
+          if (taken.length) return { ok: false, error: 'taken', taken };
+          payload.slots.forEach((slot) => performances.push({ slot, name: payload.name, piece: payload.piece || '' }));
+        } else if (payload.type === 'creche') {
           creches += Number(payload.count) || 0;
         }
         return { ok: true };
@@ -93,6 +96,7 @@
     performances: new Map(), // slot label -> { name, piece }
     creches: 0,
     onlyOpen: false,
+    selected: new Set(), // open slot labels the visitor has ticked, not yet reserved
     signature: '',
     firstRender: true,
   };
@@ -115,12 +119,33 @@
     empty: $('#program-empty'),
     onlyOpen: $('#only-open'),
     crecheCount: $('#creche-count'),
+    selectBar: $('#select-bar'),
+    selectSummary: $('#select-summary'),
   };
 
   // ---------- Rendering ----------
 
   function openCount() {
     return TOTAL_SLOTS - HOURS.reduce((n, h) => n + h.slots.filter((s) => state.performances.has(s)).length, 0);
+  }
+
+  const sortedSelection = () => ALL_SLOTS.filter((s) => state.selected.has(s));
+
+  function paintSlotButton(button) {
+    const slot = button.dataset.slot;
+    const on = state.selected.has(slot);
+    button.textContent = on ? 'Selected ✓' : 'Sign up';
+    button.classList.toggle('is-selected', on);
+    button.setAttribute('aria-pressed', String(on));
+    button.setAttribute('aria-label', `${on ? 'Unselect' : 'Select'} ${slot}`);
+  }
+
+  /** Update ticked buttons and the "Continue" bar without rebuilding the list (keeps keyboard focus). */
+  function renderSelection() {
+    els.program.querySelectorAll('.slot-btn').forEach(paintSlotButton);
+    const n = state.selected.size;
+    els.selectBar.hidden = n === 0;
+    els.selectSummary.textContent = n === 1 ? sortedSelection()[0] : `${n} times chosen`;
   }
 
   function renderSlot(slot, index) {
@@ -138,11 +163,11 @@
       who.append(el('span', 'slot-name', taken.name));
       if (taken.piece) who.append(el('span', 'slot-piece', taken.piece));
     } else {
-      const button = el('button', 'slot-btn', 'Sign up');
+      const button = el('button', 'slot-btn');
       button.type = 'button';
       button.dataset.slot = slot;
-      button.setAttribute('aria-label', `Sign up for ${slot}`);
       who.append(button);
+      paintSlotButton(button);
     }
     li.append(who);
     return li;
@@ -200,6 +225,7 @@
 
   function render() {
     renderProgram();
+    renderSelection();
     renderCreches();
   }
 
@@ -210,6 +236,7 @@
     if (state.loaded && signature === state.signature) return;
     state.signature = signature;
     state.performances = new Map(data.performances.map((p) => [p.slot, { name: p.name, piece: p.piece }]));
+    state.selected.forEach((slot) => state.performances.has(slot) && state.selected.delete(slot)); // someone else got it
     state.creches = Number(data.creches) || 0;
     state.loaded = true;
     state.failed = false;
@@ -233,7 +260,8 @@
   // ---------- Form plumbing ----------
 
   const MESSAGES = {
-    taken: (slot) => `Someone just reserved ${slot}. Pick another open time.`,
+    taken: (slots) =>
+      `Someone just reserved ${listFormat.format(slots)}. ${slots.length === 1 ? 'It is' : 'They are'} removed from your list.`,
     network: () => "We couldn't reach the server. Check your connection and try again.",
     busy: () => 'Lots of people are signing up right now. Wait a few seconds and try again.',
     invalid: () => "Something in the form isn't valid. Check each field and try again.",
@@ -281,30 +309,47 @@
   const closeButtons = dialog.querySelectorAll('[data-close]');
   const cancelButton = perfForm.querySelector('[data-close]');
   const checkPerfPhone = watchPhone(perfForm.elements.phone);
+  let reserved = []; // slots just saved, so focus can return to the first one
 
-  function openSignup(slot) {
+  /** Show the chosen times in the dialog and keep the heading and button in step with them. */
+  function renderChosen() {
+    const slots = sortedSelection();
+    const many = slots.length > 1;
+    $('#signup-times').replaceChildren(...slots.map((slot) => el('li', null, slot)));
+    $('#signup-heading').textContent = many ? 'times' : 'time';
+    perfSubmit.textContent = many ? `Reserve ${slots.length} times` : slots.length ? `Reserve ${slots[0]}` : 'Reserve';
+    perfSubmit.disabled = slots.length === 0;
+  }
+
+  function openSignup() {
+    if (!state.selected.size) return;
     perfForm.reset();
     perfForm.hidden = false;
     doneView.hidden = true;
-    perfForm.elements.slot.value = slot;
-    $('#signup-time').textContent = slot;
-    perfSubmit.textContent = `Reserve ${slot}`;
-    perfSubmit.disabled = false;
     cancelButton.textContent = 'Cancel';
     setStatus(perfStatus, '', '');
+    renderChosen();
     checkPerfPhone();
     dialog.showModal();
   }
 
   els.program.addEventListener('click', (event) => {
     const button = event.target.closest('.slot-btn');
-    if (button) openSignup(button.dataset.slot);
+    if (!button) return;
+    const slot = button.dataset.slot;
+    if (!state.selected.delete(slot)) state.selected.add(slot);
+    renderSelection();
+  });
+  $('#select-continue').addEventListener('click', openSignup);
+  $('#select-clear').addEventListener('click', () => {
+    state.selected.clear();
+    renderSelection();
   });
 
-  // After a successful sign-up, put keyboard/screen-reader focus on the row that just got the name.
+  // After a successful sign-up, put keyboard/screen-reader focus on the first row that just got the name.
   function focusReservedRow() {
-    if (doneView.hidden) return;
-    const row = els.program.querySelector(`.slot[data-slot="${perfForm.elements.slot.value}"]`);
+    if (doneView.hidden || !reserved.length) return;
+    const row = els.program.querySelector(`.slot[data-slot="${reserved[0]}"]`);
     if (row) row.focus();
   }
 
@@ -323,12 +368,13 @@
     if (!perfForm.reportValidity() || perfSubmit.disabled) return;
 
     const values = formValues(perfForm);
+    const slots = sortedSelection();
     perfSubmit.disabled = true;
     setStatus(perfStatus, '', 'Saving…');
 
     const res = await send({
       type: 'performance',
-      slot: values.slot,
+      slots,
       name: values.name.trim(),
       piece: values.piece.trim(),
       phone: values.phone.trim(),
@@ -336,10 +382,12 @@
     });
 
     if (res.ok) {
-      state.performances.set(values.slot, { name: values.name.trim(), piece: values.piece.trim() });
+      slots.forEach((slot) => state.performances.set(slot, { name: values.name.trim(), piece: values.piece.trim() }));
+      reserved = slots;
+      state.selected.clear();
       state.signature = '';
       render();
-      $('#done-time').textContent = values.slot;
+      $('#done-time').textContent = listFormat.format(slots);
       $('#done-name').textContent = values.name.trim();
       perfForm.hidden = true;
       doneView.hidden = false;
@@ -347,57 +395,78 @@
       return;
     }
 
-    const message = (MESSAGES[res.error] || MESSAGES.server)(values.slot);
-    setStatus(perfStatus, 'error', message);
     if (res.error === 'taken') {
-      cancelButton.textContent = 'Choose another time';
-      refresh(); // pull the new schedule so the taken row updates behind the dialog
+      const taken = res.taken || slots;
+      taken.forEach((slot) => state.selected.delete(slot));
+      renderChosen(); // also disables the button if nothing is left
+      renderSelection();
+      setStatus(perfStatus, 'error', MESSAGES.taken(taken));
+      cancelButton.textContent = state.selected.size ? 'Cancel' : 'Choose other times';
+      refresh(); // pull the new schedule so the taken rows update behind the dialog
     } else {
       perfSubmit.disabled = false;
+      setStatus(perfStatus, 'error', (MESSAGES[res.error] || MESSAGES.server)());
     }
   });
 
   dialog.addEventListener('close', focusReservedRow); // covers Escape and backdrop clicks
 
-  // ---------- Creche form ----------
+  // ---------- Pledge forms (creches, decorations) ----------
 
-  const crecheForm = $('#creche-form');
-  const crecheStatus = $('#creche-status');
-  const crecheSubmit = $('button[type="submit"]', crecheForm);
-  const checkCrechePhone = watchPhone(crecheForm.elements.phone);
+  /** Wires a simple name + phone form that posts `{ type, name, phone, ...extra(values) }`. */
+  function wirePledgeForm(form, { type, extra = () => ({}), onSaved = () => {}, thanks }) {
+    const status = $('.form-status', form);
+    const submit = $('button[type="submit"]', form);
+    const checkPhone = watchPhone(form.elements.phone);
 
-  crecheForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    if (!crecheForm.reportValidity() || crecheSubmit.disabled) return;
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!form.reportValidity() || submit.disabled) return;
 
-    const values = formValues(crecheForm);
-    const count = Math.floor(Number(values.count));
-    crecheSubmit.disabled = true;
-    setStatus(crecheStatus, '', 'Saving…');
+      const values = formValues(form);
+      submit.disabled = true;
+      setStatus(status, '', 'Saving…');
 
-    const res = await send({
-      type: 'creche',
-      name: values.name.trim(),
-      count,
-      phone: values.phone.trim(),
-      website: values.website,
+      const res = await send({
+        type,
+        name: values.name.trim(),
+        phone: values.phone.trim(),
+        website: values.website,
+        ...extra(values),
+      });
+
+      submit.disabled = false;
+      if (res.ok) {
+        onSaved(values);
+        form.reset();
+        checkPhone();
+        setStatus(status, 'ok', thanks(values));
+      } else {
+        setStatus(status, 'error', (MESSAGES[res.error] || MESSAGES.server)());
+      }
     });
+  }
 
-    crecheSubmit.disabled = false;
-    if (res.ok) {
-      state.creches += count;
+  const crecheCountOf = (values) => Math.floor(Number(values.count));
+
+  wirePledgeForm($('#creche-form'), {
+    type: 'creche',
+    extra: (values) => ({ count: crecheCountOf(values) }),
+    onSaved: (values) => {
+      state.creches += crecheCountOf(values);
       state.signature = '';
       renderCreches();
-      crecheForm.reset();
-      checkCrechePhone();
-      setStatus(
-        crecheStatus,
-        'ok',
-        `Thank you! ${count === 1 ? 'Your creche is' : `Your ${count} creches are`} counted.`
-      );
-    } else {
-      setStatus(crecheStatus, 'error', (MESSAGES[res.error] || MESSAGES.server)());
-    }
+    },
+    thanks: (values) => {
+      const count = crecheCountOf(values);
+      return `Thank you! ${count === 1 ? 'Your creche is' : `Your ${count} creches are`} counted.`;
+    },
+  });
+
+  wirePledgeForm($('#decorations-form'), {
+    type: 'decorations',
+    extra: (values) => ({ items: values.items.trim() }),
+    thanks: () => 'Thank you! See you between 8 and 11 AM on December 17.',
   });
 
   // ---------- Filters, retry, polling ----------

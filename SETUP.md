@@ -23,7 +23,7 @@ The page is plain HTML/CSS/JS on **GitHub Pages**. Sign-ups are saved in a **Goo
 3. Click **Deploy**, then **Authorize access** and choose your Google account.
    Google warns that the app is unverified, because you wrote it. Click **Advanced → Go to (project name) (unsafe) → Allow**.
 4. Copy the **Web app URL** (it ends in `/exec`). (https://script.google.com/macros/s/AKfycbwxS8wBJgu4yQ1EuiZ_nVsK2OwB3DEFbbGp5uP9EbfUiMCenJglqoWRm4TYdHIDxEd_/exec)
-5. Paste the URL into your browser. You should see `{"ok":true,"performances":[],"creches":0}`. Two new tabs, **Performances** and **Creches**, appear in the Sheet.
+5. Paste the URL into your browser. You should see `{"ok":true,"performances":[],"creches":0}`. Tabs named **Performances** and **Creches** appear in the Sheet. A **Decorations** tab appears the first time someone signs up to bring decorations.
 
 ## 3. Point the site at the script
 
@@ -59,9 +59,10 @@ This writes `qr/community-creche-qr.svg` (use this for print, since it stays sha
 ## During the event
 
 - **The Sheet is the master list.** Sort the **Performances** tab by the **Time** column for a run-of-show, or just read it top to bottom.
+- **A performer who picks several times** gets one row per time, all with the same name and phone.
 - **To free up a slot** (someone cancels, or a typo), delete that row. The page shows the slot as open again within about 15 seconds.
 - **To fix a name or performance**, edit the cell. It updates on the page within about 15 seconds.
-- **Never rename the tabs or the header row.** The script looks for `Performances` and `Creches`.
+- **Never rename the tabs or the header row.** The script looks for `Performances`, `Creches` and `Decorations`.
 
 ## If you change `Code.gs` later
 
