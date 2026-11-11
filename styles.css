@@ -268,6 +268,7 @@ dialog h2 { font-size: 1.85rem; }
 .slot-time {
   flex: none;
   min-width: 5.6rem;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums lining-nums;
 }
 .is-taken .slot-time { color: var(--muted); }

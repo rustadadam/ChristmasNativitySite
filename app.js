@@ -1,4 +1,4 @@
-/* Community Creche — schedule, sign-ups, creche count. No dependencies. */
+/* Community Creche — schedules, sign-ups, creche count. No dependencies. */
 (() => {
   'use strict';
 
@@ -6,10 +6,10 @@
   const POLL_MS = 45000;
   const REQUEST_TIMEOUT_MS = 20000;
 
-  // ---------- Time grid (keep in sync with apps-script/Code.gs) ----------
+  // ---------- Time grids (keep in sync with apps-script/Code.gs) ----------
 
   const FIRST_MIN = 12 * 60;
-  const LAST_MIN = 21 * 60; // exclusive: last slot starts at 8:50 PM
+  const LAST_MIN = 21 * 60; // exclusive: last performance slot starts at 8:50 PM
   const STEP_MIN = 10;
 
   const slotLabel = (minutes) => {
@@ -17,19 +17,28 @@
     const mm = String(minutes % 60).padStart(2, '0');
     return `${h % 12 || 12}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
   };
+  const hourName = (hour) => (hour === 12 ? 'Noon' : `${hour % 12}`);
   const hourHeading = (hour) => (hour === 12 ? 'Noon' : `${hour % 12} PM`);
+  const hourBlockLabel = (hour) => `${hourName(hour)} – ${(hour + 1) % 12 || 12} PM`; // 'Noon – 1 PM', '8 – 9 PM'
 
-  /** [{ heading: 'Noon', slots: ['12:00 PM', ...] }, ...] */
-  const HOURS = [];
+  /** Performances: [{ heading: 'Noon', slots: ['12:00 PM', '12:10 PM', ...] }, ...] */
+  const TIME_GROUPS = [];
   for (let m = FIRST_MIN; m < LAST_MIN; m += STEP_MIN) {
     const hour = Math.floor(m / 60);
-    if (!HOURS.length || HOURS[HOURS.length - 1].hour !== hour) {
-      HOURS.push({ hour, heading: hourHeading(hour), slots: [] });
+    if (!TIME_GROUPS.length || TIME_GROUPS[TIME_GROUPS.length - 1].hour !== hour) {
+      TIME_GROUPS.push({ hour, heading: hourHeading(hour), slots: [] });
     }
-    HOURS[HOURS.length - 1].slots.push(slotLabel(m));
+    TIME_GROUPS[TIME_GROUPS.length - 1].slots.push(slotLabel(m));
   }
-  const ALL_SLOTS = HOURS.flatMap((h) => h.slots);
-  const TOTAL_SLOTS = ALL_SLOTS.length;
+
+  /** Ushers: one block per hour, noon to 9:00 PM, in a single group with no heading. */
+  const USHER_GROUPS = [
+    {
+      heading: '',
+      slots: Array.from({ length: (LAST_MIN - FIRST_MIN) / 60 }, (_, i) => hourBlockLabel(FIRST_MIN / 60 + i)),
+    },
+  ];
+
   const listFormat = new Intl.ListFormat('en', { style: 'long', type: 'conjunction' });
 
   // ---------- Data layer: real backend, or in-memory preview when no URL is configured ----------
@@ -65,19 +74,23 @@
       { slot: '2:10 PM', name: 'Sample Piano Duo', piece: '' },
       { slot: '6:00 PM', name: 'Sample Youth Group', piece: 'Away in a Manger' },
     ];
+    const ushers = [{ slot: 'Noon – 1 PM', name: 'Sample Usher' }];
+    const slotLists = { performance: performances, usher: ushers }; // payload.type -> list
     let creches = 3;
     const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const copy = (list) => list.map((item) => ({ ...item }));
     return {
       async load() {
         await wait(400);
-        return { ok: true, performances: performances.map((p) => ({ ...p })), creches };
+        return { ok: true, performances: copy(performances), ushers: copy(ushers), creches };
       },
       async send(payload) {
         await wait(600);
-        if (payload.type === 'performance') {
-          const taken = payload.slots.filter((slot) => performances.some((p) => p.slot === slot));
+        const list = slotLists[payload.type];
+        if (list) {
+          const taken = payload.slots.filter((slot) => list.some((p) => p.slot === slot));
           if (taken.length) return { ok: false, error: 'taken', taken };
-          payload.slots.forEach((slot) => performances.push({ slot, name: payload.name, piece: payload.piece || '' }));
+          payload.slots.forEach((slot) => list.push({ slot, name: payload.name, piece: payload.piece || '' }));
         } else if (payload.type === 'creche') {
           creches += Number(payload.count) || 0;
         }
@@ -93,12 +106,8 @@
   const state = {
     loaded: false,
     failed: false,
-    performances: new Map(), // slot label -> { name, piece }
     creches: 0,
-    onlyOpen: false,
-    selected: new Set(), // open slot labels the visitor has ticked, not yet reserved
     signature: '',
-    firstRender: true,
   };
 
   // ---------- DOM helpers ----------
@@ -112,120 +121,237 @@
     return node;
   }
 
-  const els = {
-    program: $('#program'),
-    count: $('#program-count'),
-    error: $('#program-error'),
-    empty: $('#program-empty'),
-    onlyOpen: $('#only-open'),
-    crecheCount: $('#creche-count'),
-    selectBar: $('#select-bar'),
-    selectSummary: $('#select-summary'),
-  };
+  // ---------- Schedule pickers (performances, ushers) ----------
 
-  // ---------- Rendering ----------
+  /**
+   * Builds one schedule inside `[data-picker="<type>"]`: rows of slots, a Sign up toggle on each open row,
+   * and a sticky "Continue" bar. Many slots can be chosen at once. `config` supplies the type, data key,
+   * slot groups and wording; the sign-up dialog below is shared.
+   */
+  function createPicker(config) {
+    const root = $(`[data-picker="${config.type}"]`);
+    root.append($('#picker-template').content.cloneNode(true));
 
-  function openCount() {
-    return TOTAL_SLOTS - HOURS.reduce((n, h) => n + h.slots.filter((s) => state.performances.has(s)).length, 0);
-  }
+    const ui = {
+      program: $('.program', root),
+      count: $('.program-count', root),
+      error: $('.program-error', root),
+      empty: $('.program-empty', root),
+      onlyOpen: $('.only-open', root),
+      selectBar: $('.select-bar', root),
+      selectSummary: $('.select-summary', root),
+    };
+    if (!config.filter) $('.toggle', root).hidden = true;
+    ui.empty.textContent = config.strings.empty;
 
-  const sortedSelection = () => ALL_SLOTS.filter((s) => state.selected.has(s));
+    const allSlots = config.groups.flatMap((g) => g.slots);
+    const taken = new Map(); // slot label -> { name, piece }
+    const selected = new Set(); // open slots the visitor has ticked, not yet reserved
+    let onlyOpen = false;
+    let firstRender = true;
 
-  function paintSlotButton(button) {
-    const slot = button.dataset.slot;
-    const on = state.selected.has(slot);
-    button.textContent = on ? 'Selected ✓' : 'Sign up';
-    button.classList.toggle('is-selected', on);
-    button.setAttribute('aria-pressed', String(on));
-    button.setAttribute('aria-label', `${on ? 'Unselect' : 'Select'} ${slot}`);
-  }
+    const sorted = () => allSlots.filter((s) => selected.has(s));
+    const openCount = () => allSlots.filter((s) => !taken.has(s)).length;
 
-  /** Update ticked buttons and the "Continue" bar without rebuilding the list (keeps keyboard focus). */
-  function renderSelection() {
-    els.program.querySelectorAll('.slot-btn').forEach(paintSlotButton);
-    const n = state.selected.size;
-    els.selectBar.hidden = n === 0;
-    els.selectSummary.textContent = n === 1 ? sortedSelection()[0] : `${n} times chosen`;
-  }
-
-  function renderSlot(slot, index) {
-    const taken = state.performances.get(slot);
-    const li = el('li', `slot ${taken ? 'is-taken' : 'is-open'}${state.firstRender ? ' reveal' : ''}`);
-    li.dataset.slot = slot;
-    li.tabIndex = -1;
-    li.style.setProperty('--i', index);
-    li.append(el('span', 'slot-time', slot), el('span', 'leader'));
-
-    const who = el('span', 'slot-who');
-    if (!state.loaded) {
-      who.append(el('span', 'skeleton'));
-    } else if (taken) {
-      who.append(el('span', 'slot-name', taken.name));
-      if (taken.piece) who.append(el('span', 'slot-piece', taken.piece));
-    } else {
-      const button = el('button', 'slot-btn');
-      button.type = 'button';
-      button.dataset.slot = slot;
-      who.append(button);
-      paintSlotButton(button);
-    }
-    li.append(who);
-    return li;
-  }
-
-  function renderProgram() {
-    els.error.hidden = !state.failed;
-    els.program.hidden = state.failed;
-    els.program.replaceChildren();
-    if (state.failed) {
-      els.count.textContent = '';
-      return;
+    function paintSlotButton(button) {
+      const slot = button.dataset.slot;
+      const on = selected.has(slot);
+      button.textContent = on ? 'Selected ✓' : 'Sign up';
+      button.classList.toggle('is-selected', on);
+      button.setAttribute('aria-pressed', String(on));
+      button.setAttribute('aria-label', `${on ? 'Unselect' : 'Select'} ${slot}`);
     }
 
-    let index = 0;
-    let shown = 0;
-    for (const { heading, slots } of HOURS) {
-      const visible = slots.filter((s) => !(state.loaded && state.onlyOpen && state.performances.has(s)));
-      if (!visible.length) continue;
-      const group = el('div', 'hour');
-      group.append(el('h3', null, heading));
-      const list = el('ul', 'slots');
-      for (const slot of visible) {
-        list.append(renderSlot(slot, index++));
-        shown++;
+    /** Update ticked buttons and the "Continue" bar without rebuilding the list (keeps keyboard focus). */
+    function renderSelection() {
+      ui.program.querySelectorAll('.slot-btn').forEach(paintSlotButton);
+      const n = selected.size;
+      ui.selectBar.hidden = n === 0;
+      ui.selectSummary.textContent = n === 1 ? sorted()[0] : `${n} ${config.nouns[1]} chosen`;
+    }
+
+    function renderSlot(slot, index) {
+      const entry = taken.get(slot);
+      const li = el('li', `slot ${entry ? 'is-taken' : 'is-open'}${firstRender ? ' reveal' : ''}`);
+      li.dataset.slot = slot;
+      li.tabIndex = -1;
+      li.style.setProperty('--i', index);
+      li.append(el('span', 'slot-time', slot), el('span', 'leader'));
+
+      const who = el('span', 'slot-who');
+      if (!state.loaded) {
+        who.append(el('span', 'skeleton'));
+      } else if (entry) {
+        who.append(el('span', 'slot-name', entry.name));
+        if (entry.piece) who.append(el('span', 'slot-piece', entry.piece));
+      } else {
+        const button = el('button', 'slot-btn');
+        button.type = 'button';
+        button.dataset.slot = slot;
+        who.append(button);
+        paintSlotButton(button);
       }
-      group.append(list);
-      els.program.append(group);
+      li.append(who);
+      return li;
     }
 
-    if (state.loaded) {
-      const open = openCount();
-      els.count.textContent = open
-        ? `${open} of ${TOTAL_SLOTS} times open`
-        : `All ${TOTAL_SLOTS} times are taken`;
-      els.empty.hidden = shown > 0;
-    } else {
-      els.count.textContent = 'Checking open times…';
-      els.empty.hidden = true;
+    function renderProgram() {
+      ui.error.hidden = !state.failed;
+      ui.program.hidden = state.failed;
+      ui.program.replaceChildren();
+      if (state.failed) {
+        ui.count.textContent = '';
+        return;
+      }
+
+      let index = 0;
+      let shown = 0;
+      for (const { heading, slots } of config.groups) {
+        const visible = slots.filter((s) => !(state.loaded && onlyOpen && taken.has(s)));
+        if (!visible.length) continue;
+        const group = el('div', 'hour');
+        if (heading) group.append(el('h3', null, heading));
+        const list = el('ul', 'slots');
+        for (const slot of visible) {
+          list.append(renderSlot(slot, index++));
+          shown++;
+        }
+        group.append(list);
+        ui.program.append(group);
+      }
+
+      if (state.loaded) {
+        const open = openCount();
+        ui.count.textContent = open ? config.strings.open(open, allSlots.length) : config.strings.full(allSlots.length);
+        ui.empty.hidden = shown > 0;
+      } else {
+        ui.count.textContent = config.strings.loading;
+        ui.empty.hidden = true;
+      }
+      firstRender = false;
     }
-    state.firstRender = false;
+
+    function render() {
+      renderProgram();
+      renderSelection();
+    }
+
+    const picker = {
+      config,
+      sorted,
+      get size() {
+        return selected.size;
+      },
+      render,
+      renderSelection,
+
+      /** Replace what's taken with the server's list; drop any chosen slot someone else just got. */
+      setTaken(list) {
+        taken.clear();
+        list.forEach((p) => taken.set(p.slot, { name: p.name, piece: p.piece }));
+        selected.forEach((slot) => taken.has(slot) && selected.delete(slot));
+      },
+      deselect(slots) {
+        slots.forEach((slot) => selected.delete(slot));
+      },
+      /** After a successful save: show the new names right away and clear the choice. */
+      reserve(slots, entry) {
+        slots.forEach((slot) => taken.set(slot, entry));
+        selected.clear();
+      },
+      focusRow(slot) {
+        const row = ui.program.querySelector(`.slot[data-slot="${slot}"]`);
+        if (row) row.focus();
+      },
+    };
+
+    ui.program.addEventListener('click', (event) => {
+      const button = event.target.closest('.slot-btn');
+      if (!button) return;
+      const slot = button.dataset.slot;
+      if (!selected.delete(slot)) selected.add(slot);
+      renderSelection();
+    });
+    $('.select-continue', root).addEventListener('click', () => openSignup(picker));
+    $('.select-clear', root).addEventListener('click', () => {
+      selected.clear();
+      renderSelection();
+    });
+    ui.onlyOpen.addEventListener('change', () => {
+      onlyOpen = ui.onlyOpen.checked;
+      renderProgram();
+    });
+    $('.retry', root).addEventListener('click', () => {
+      state.failed = false;
+      render();
+      refresh();
+    });
+
+    return picker;
   }
+
+  const performances = createPicker({
+    type: 'performance',
+    dataKey: 'performances',
+    groups: TIME_GROUPS,
+    filter: true,
+    nouns: ['time', 'times'],
+    strings: {
+      loading: 'Checking open times…',
+      open: (open, total) => `${open} of ${total} times open`,
+      full: (total) => `All ${total} times are taken`,
+      empty: 'Every open time has been taken. Thank you, and please come listen.',
+    },
+    dialog: {
+      lede: 'One person or group per time. Each time is 10 minutes.',
+      nameLabel: 'Your name or group name',
+      piece: true,
+      notice: 'Your name and performance will be shown publicly on this page.',
+      doneTitle: "You're on the program",
+    },
+  });
+
+  const ushers = createPicker({
+    type: 'usher',
+    dataKey: 'ushers',
+    groups: USHER_GROUPS,
+    filter: false,
+    nouns: ['hour', 'hours'],
+    strings: {
+      loading: 'Checking open hours…',
+      open: (open, total) => `${open} of ${total} hours still need someone`,
+      full: () => 'Every hour is covered. Thank you!',
+      empty: 'Every hour is covered. Thank you!',
+    },
+    dialog: {
+      lede: 'One person per hour. You will help make sure there is enough hot chocolate and look after the general needs of the event.',
+      nameLabel: 'Your name',
+      piece: false,
+      notice: 'Your name will be shown publicly on this page.',
+      doneTitle: 'Thank you for helping',
+    },
+  });
+
+  const pickers = [performances, ushers];
+
+  // ---------- Creche count ----------
+
+  const crecheCountEl = $('#creche-count');
 
   function renderCreches() {
     const n = state.creches;
-    els.crecheCount.replaceChildren();
+    crecheCountEl.replaceChildren();
     if (!state.loaded) {
-      els.crecheCount.innerHTML = '&nbsp;';
+      crecheCountEl.innerHTML = '&nbsp;';
     } else if (n === 0) {
-      els.crecheCount.textContent = 'No creches promised yet. Be the first.';
+      crecheCountEl.textContent = 'No creches promised yet. Be the first.';
     } else {
-      els.crecheCount.append(el('strong', null, String(n)), ` ${n === 1 ? 'creche is' : 'creches are'} coming so far`);
+      crecheCountEl.append(el('strong', null, String(n)), ` ${n === 1 ? 'creche is' : 'creches are'} coming so far`);
     }
   }
 
   function render() {
-    renderProgram();
-    renderSelection();
+    pickers.forEach((p) => p.render());
     renderCreches();
   }
 
@@ -235,8 +361,7 @@
     const signature = JSON.stringify(data);
     if (state.loaded && signature === state.signature) return;
     state.signature = signature;
-    state.performances = new Map(data.performances.map((p) => [p.slot, { name: p.name, piece: p.piece }]));
-    state.selected.forEach((slot) => state.performances.has(slot) && state.selected.delete(slot)); // someone else got it
+    pickers.forEach((p) => p.setTaken(data[p.config.dataKey] || []));
     state.creches = Number(data.creches) || 0;
     state.loaded = true;
     state.failed = false;
@@ -261,7 +386,7 @@
 
   const MESSAGES = {
     taken: (slots) =>
-      `Someone just reserved ${listFormat.format(slots)}. ${slots.length === 1 ? 'It is' : 'They are'} removed from your list.`,
+      `Someone just took ${listFormat.format(slots)}. ${slots.length === 1 ? 'It is' : 'They are'} removed from your list.`,
     network: () => "We couldn't reach the server. Check your connection and try again.",
     busy: () => 'Lots of people are signing up right now. Wait a few seconds and try again.',
     invalid: () => "Something in the form isn't valid. Check each field and try again.",
@@ -299,58 +424,55 @@
 
   const formValues = (form) => Object.fromEntries(new FormData(form));
 
-  // ---------- Performance sign-up dialog ----------
+  // ---------- Slot sign-up dialog (shared by performances and ushers) ----------
 
   const dialog = $('#signup');
-  const perfForm = $('#signup-form');
-  const perfStatus = $('#signup-status');
-  const perfSubmit = $('#signup-submit');
+  const slotForm = $('#signup-form');
+  const slotStatus = $('#signup-status');
+  const slotSubmit = $('#signup-submit');
   const doneView = $('#signup-done');
   const closeButtons = dialog.querySelectorAll('[data-close]');
-  const cancelButton = perfForm.querySelector('[data-close]');
-  const checkPerfPhone = watchPhone(perfForm.elements.phone);
-  let reserved = []; // slots just saved, so focus can return to the first one
+  const cancelButton = slotForm.querySelector('[data-close]');
+  const pieceField = $('#signup-piece-field');
+  const checkSlotPhone = watchPhone(slotForm.elements.phone);
+  let active = null; // the picker the dialog is currently serving
+  let reserved = { picker: null, slots: [] }; // what was just saved, so focus can return to its first row
 
-  /** Show the chosen times in the dialog and keep the heading and button in step with them. */
+  /** Show the chosen slots in the dialog and keep the heading and button in step with them. */
   function renderChosen() {
-    const slots = sortedSelection();
-    const many = slots.length > 1;
+    const slots = active.sorted();
+    const [one, many] = active.config.nouns;
     $('#signup-times').replaceChildren(...slots.map((slot) => el('li', null, slot)));
-    $('#signup-heading').textContent = many ? 'times' : 'time';
-    perfSubmit.textContent = many ? `Reserve ${slots.length} times` : slots.length ? `Reserve ${slots[0]}` : 'Reserve';
-    perfSubmit.disabled = slots.length === 0;
+    $('#signup-heading').textContent = slots.length > 1 ? many : one;
+    slotSubmit.textContent =
+      slots.length > 1 ? `Reserve ${slots.length} ${many}` : slots.length ? `Reserve ${slots[0]}` : 'Reserve';
+    slotSubmit.disabled = slots.length === 0;
   }
 
-  function openSignup() {
-    if (!state.selected.size) return;
-    perfForm.reset();
-    perfForm.hidden = false;
+  function openSignup(picker) {
+    if (!picker.size) return;
+    active = picker;
+    const text = picker.config.dialog;
+    slotForm.reset();
+    slotForm.hidden = false;
     doneView.hidden = true;
+    $('#signup-lede').textContent = text.lede;
+    $('#signup-name-label').textContent = text.nameLabel;
+    $('#signup-notice').textContent = text.notice;
+    $('#signup-done-title').textContent = text.doneTitle;
+    pieceField.hidden = !text.piece;
+    slotForm.elements.piece.disabled = !text.piece; // a disabled field is left out of the submitted values
     cancelButton.textContent = 'Cancel';
-    setStatus(perfStatus, '', '');
+    setStatus(slotStatus, '', '');
     renderChosen();
-    checkPerfPhone();
+    checkSlotPhone();
     dialog.showModal();
   }
 
-  els.program.addEventListener('click', (event) => {
-    const button = event.target.closest('.slot-btn');
-    if (!button) return;
-    const slot = button.dataset.slot;
-    if (!state.selected.delete(slot)) state.selected.add(slot);
-    renderSelection();
-  });
-  $('#select-continue').addEventListener('click', openSignup);
-  $('#select-clear').addEventListener('click', () => {
-    state.selected.clear();
-    renderSelection();
-  });
-
   // After a successful sign-up, put keyboard/screen-reader focus on the first row that just got the name.
   function focusReservedRow() {
-    if (doneView.hidden || !reserved.length) return;
-    const row = els.program.querySelector(`.slot[data-slot="${reserved[0]}"]`);
-    if (row) row.focus();
+    if (doneView.hidden || !reserved.slots.length) return;
+    reserved.picker.focusRow(reserved.slots[0]);
   }
 
   closeButtons.forEach((b) =>
@@ -363,49 +485,51 @@
     if (event.target === dialog) dialog.close(); // click on the backdrop
   });
 
-  perfForm.addEventListener('submit', async (event) => {
+  slotForm.addEventListener('submit', async (event) => {
     event.preventDefault();
-    if (!perfForm.reportValidity() || perfSubmit.disabled) return;
+    if (!slotForm.reportValidity() || slotSubmit.disabled) return;
 
-    const values = formValues(perfForm);
-    const slots = sortedSelection();
-    perfSubmit.disabled = true;
-    setStatus(perfStatus, '', 'Saving…');
+    const picker = active;
+    const values = formValues(slotForm);
+    const slots = picker.sorted();
+    slotSubmit.disabled = true;
+    setStatus(slotStatus, '', 'Saving…');
 
+    const name = values.name.trim();
+    const piece = (values.piece || '').trim();
     const res = await send({
-      type: 'performance',
+      type: picker.config.type,
       slots,
-      name: values.name.trim(),
-      piece: values.piece.trim(),
+      name,
       phone: values.phone.trim(),
       website: values.website,
+      ...(picker.config.dialog.piece && { piece }),
     });
 
     if (res.ok) {
-      slots.forEach((slot) => state.performances.set(slot, { name: values.name.trim(), piece: values.piece.trim() }));
-      reserved = slots;
-      state.selected.clear();
+      picker.reserve(slots, { name, piece });
+      reserved = { picker, slots };
       state.signature = '';
       render();
       $('#done-time').textContent = listFormat.format(slots);
-      $('#done-name').textContent = values.name.trim();
-      perfForm.hidden = true;
+      $('#done-name').textContent = name;
+      slotForm.hidden = true;
       doneView.hidden = false;
       $('button', doneView).focus();
       return;
     }
 
     if (res.error === 'taken') {
-      const taken = res.taken || slots;
-      taken.forEach((slot) => state.selected.delete(slot));
+      const takenSlots = res.taken || slots;
+      picker.deselect(takenSlots);
       renderChosen(); // also disables the button if nothing is left
-      renderSelection();
-      setStatus(perfStatus, 'error', MESSAGES.taken(taken));
-      cancelButton.textContent = state.selected.size ? 'Cancel' : 'Choose other times';
+      picker.renderSelection();
+      setStatus(slotStatus, 'error', MESSAGES.taken(takenSlots));
+      cancelButton.textContent = picker.size ? 'Cancel' : `Choose other ${picker.config.nouns[1]}`;
       refresh(); // pull the new schedule so the taken rows update behind the dialog
     } else {
-      perfSubmit.disabled = false;
-      setStatus(perfStatus, 'error', (MESSAGES[res.error] || MESSAGES.server)());
+      slotSubmit.disabled = false;
+      setStatus(slotStatus, 'error', (MESSAGES[res.error] || MESSAGES.server)());
     }
   });
 
@@ -469,18 +593,7 @@
     thanks: () => 'Thank you! See you between 8 and 11 AM on December 17.',
   });
 
-  // ---------- Filters, retry, polling ----------
-
-  els.onlyOpen.addEventListener('change', () => {
-    state.onlyOpen = els.onlyOpen.checked;
-    renderProgram();
-  });
-
-  $('#retry').addEventListener('click', () => {
-    state.failed = false;
-    render();
-    refresh();
-  });
+  // ---------- Polling ----------
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') refresh();

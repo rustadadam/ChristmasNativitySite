@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Community Creche</title>
-  <meta name="description" content="Community Creche: Thursday, December 17, noon to 9:00 PM, 1260 South 400 West, Orem, Utah. See nativity displays, enjoy hot cocoa, hear musical performances. Sign up to perform sacred music, bring a creche, or drop off Christmas decorations.">
+  <meta name="description" content="Community Creche: Thursday, December 17, noon to 9:00 PM, 1260 South 400 West, Orem, Utah. See nativity displays, enjoy hot cocoa, hear musical performances. Sign up to perform sacred music, bring a creche, drop off Christmas decorations, or help usher.">
   <meta name="theme-color" content="#7a1822">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 4l5 23 23 5-23 5-5 23-5-23-23-5 23-5z' fill='%237a1822'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -82,6 +82,7 @@
       <p class="cta-row">
         <a class="btn" href="#creche">Bring a creche</a>
         <a class="btn btn--ghost" href="#decorations">Drop off decorations</a>
+        <a class="btn btn--ghost" href="#usher">Help usher</a>
         <a class="btn btn--ghost" href="#perform">Sign up to perform</a>
       </p>
       <p class="contact">Questions? Call <a href="tel:+18013109156">(801) 310-9156</a> or email <a href="mailto:Janalkeen@hotmail.com">Janalkeen@hotmail.com</a>.</p>
@@ -178,6 +179,16 @@
       </form>
     </section>
 
+    <!-- ===== Ushers ===== -->
+    <section class="section" id="usher" aria-labelledby="usher-title">
+      <svg class="flourish" aria-hidden="true"><use href="#flourish"/></svg>
+      <h2 id="usher-title">Help usher and host</h2>
+      <p class="lede">Take an hour and help oversee the event. Ushers make sure there is enough hot chocolate and look after the general needs of the event. Choose one or more open hours between noon and 9:00 PM. Each hour goes to one person, first come, first served.</p>
+      <p class="notice">Names you enter here appear publicly on this page. Phone numbers go only to the organizer.</p>
+
+      <div data-picker="usher"></div>
+    </section>
+
     <!-- ===== Performances ===== -->
     <section class="section" id="perform" aria-labelledby="perform-title">
       <svg class="flourish" aria-hidden="true"><use href="#flourish"/></svg>
@@ -185,27 +196,7 @@
       <p class="lede">Share sacred music that is centered on Christ: a hymn, a Christmas carol of the Savior's birth, or an instrumental piece. Choose one or more open 10-minute times between noon and 9:00 PM. Each time goes to one person or group, first come, first served.</p>
       <p class="notice">Names and performances you enter here appear publicly on this page. Phone numbers go only to the organizer.</p>
 
-      <div class="program-bar">
-        <p class="program-count" id="program-count" role="status" aria-live="polite">Checking open times…</p>
-        <label class="toggle">
-          <input type="checkbox" id="only-open">
-          <span>Show open times only</span>
-        </label>
-      </div>
-
-      <div class="program-error" id="program-error" role="alert" hidden>
-        <p>We couldn't load the schedule. Check your connection, then try again.</p>
-        <button type="button" class="btn btn--ghost btn--small" id="retry">Try again</button>
-      </div>
-
-      <div class="program" id="program"></div>
-      <p class="program-empty" id="program-empty" hidden>Every open time has been taken. Thank you, and please come listen.</p>
-
-      <div class="select-bar" id="select-bar" hidden>
-        <p class="select-summary" id="select-summary" role="status" aria-live="polite"></p>
-        <button class="btn" type="button" id="select-continue">Continue</button>
-        <button class="btn btn--ghost" type="button" id="select-clear">Clear</button>
-      </div>
+      <div data-picker="performance"></div>
     </section>
 
     <footer class="closing">
@@ -215,18 +206,43 @@
     </footer>
   </main>
 
-  <!-- ===== Sign-up dialog (performances) ===== -->
+  <!-- Markup for one schedule (performances, ushers); app.js fills each [data-picker] mount from this. -->
+  <template id="picker-template">
+    <div class="program-bar">
+      <p class="program-count" role="status" aria-live="polite"></p>
+      <label class="toggle">
+        <input type="checkbox" class="only-open">
+        <span>Show open times only</span>
+      </label>
+    </div>
+
+    <div class="program-error" role="alert" hidden>
+      <p>We couldn't load the schedule. Check your connection, then try again.</p>
+      <button type="button" class="btn btn--ghost btn--small retry">Try again</button>
+    </div>
+
+    <div class="program"></div>
+    <p class="program-empty" hidden></p>
+
+    <div class="select-bar" hidden>
+      <p class="select-summary" role="status" aria-live="polite"></p>
+      <button class="btn select-continue" type="button">Continue</button>
+      <button class="btn btn--ghost select-clear" type="button">Clear</button>
+    </div>
+  </template>
+
+  <!-- ===== Sign-up dialog (performances and ushers; wording is set by app.js) ===== -->
   <dialog id="signup" aria-labelledby="signup-title">
     <div class="dialog-body">
       <form id="signup-form" novalidate>
         <h2 id="signup-title">Reserve your <span id="signup-heading">time</span></h2>
         <ul class="chosen" id="signup-times" aria-label="Times you chose"></ul>
-        <p class="lede lede--small">One person or group per time. Each time is 10 minutes.</p>
+        <p class="lede lede--small" id="signup-lede"></p>
         <div class="field">
-          <label for="p-name">Your name or group name</label>
+          <label for="p-name" id="signup-name-label"></label>
           <input id="p-name" name="name" type="text" autocomplete="name" maxlength="80" required autofocus>
         </div>
-        <div class="field">
+        <div class="field" id="signup-piece-field">
           <label for="p-piece">What sacred music will you perform?</label>
           <input id="p-piece" name="piece" type="text" maxlength="120" required placeholder="Piano: O Holy Night" aria-describedby="p-piece-hint">
           <p class="hint" id="p-piece-hint">Please choose sacred, Christ-centered music, such as a hymn or a carol about the Savior.</p>
@@ -237,7 +253,7 @@
           <p class="hint" id="p-phone-hint">Only the organizer sees this.</p>
         </div>
         <p class="hp" aria-hidden="true"><label>Leave this empty <input type="text" name="website" tabindex="-1" autocomplete="off"></label></p>
-        <p class="notice">Your name and performance will be shown publicly on this page.</p>
+        <p class="notice" id="signup-notice"></p>
         <p class="form-status" id="signup-status" role="alert"></p>
         <div class="dialog-actions">
           <button class="btn" type="submit" id="signup-submit">Reserve this time</button>
@@ -246,7 +262,7 @@
       </form>
 
       <div id="signup-done" hidden>
-        <h2>You're on the program</h2>
+        <h2 id="signup-done-title"></h2>
         <p class="done-line"><span id="done-time"></span> · <span id="done-name"></span></p>
         <p class="lede lede--small">Your name now appears on the schedule. The organizer has your phone number if anything changes.</p>
         <div class="dialog-actions">

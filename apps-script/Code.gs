@@ -12,14 +12,16 @@
 const PERFORMANCES = 'Performances';
 const CRECHES = 'Creches';
 const DECORATIONS = 'Decorations';
+const USHERS = 'Ushers';
 
 // Time grid: 10-minute slots, noon up to (not including) 9:00 PM. Keep in sync with app.js.
 const FIRST_MIN = 12 * 60;
 const LAST_MIN = 21 * 60;
 const STEP_MIN = 10;
+// Usher blocks: one per hour over the same window, labelled like 'Noon – 1 PM' and '8 – 9 PM'. Keep in sync with app.js.
 
 const MAX_CRECHES_PER_SIGNUP = 50;
-const CACHE_KEY = 'public-v1';
+const CACHE_KEY = 'public-v2';
 const CACHE_SECONDS = 15;
 
 // Column layout of each tab. '@' = plain text (so nothing is ever treated as a formula).
@@ -31,6 +33,10 @@ const SHEETS = {
   [CRECHES]: {
     headers: ['Signed up at', 'Name (private)', 'Creches', 'Phone (private)'],
     formats: ['@', '@', '0', '@'],
+  },
+  [USHERS]: {
+    headers: ['Hour', 'Name', 'Phone (private)', 'Signed up at'],
+    formats: ['@', '@', '@', '@'],
   },
   [DECORATIONS]: {
     headers: ['Signed up at', 'Name (private)', 'Bringing (private)', 'Phone (private)'],
@@ -64,7 +70,8 @@ function doPost(e) {
   if (!lock.tryLock(15000)) return respond_(fail_('busy'));
 
   try {
-    if (body.type === 'performance') return respond_(addPerformance_(body));
+    if (body.type === 'performance') return respond_(addSlots_(body, PERFORMANCE_KIND));
+    if (body.type === 'usher') return respond_(addSlots_(body, USHER_KIND));
     if (body.type === 'creche') return respond_(addCreche_(body));
     if (body.type === 'decorations') return respond_(addDecorations_(body));
     return respond_(fail_('invalid'));
@@ -83,29 +90,48 @@ function publicData_() {
   const hit = cache.get(CACHE_KEY);
   if (hit) return JSON.parse(hit);
 
-  const valid = slotLabels_();
+  const validTimes = slotLabels_();
   const performances = rows_(PERFORMANCES)
-    .filter(function (r) { return valid.indexOf(String(r[0]).trim()) >= 0; })
+    .filter(function (r) { return validTimes.indexOf(String(r[0]).trim()) >= 0; })
     .map(function (r) {
       // r[3] is the phone number: deliberately not included.
       return { slot: String(r[0]).trim(), name: String(r[1]), piece: String(r[2]) };
+    });
+  const validHours = hourLabels_();
+  const ushers = rows_(USHERS)
+    .filter(function (r) { return validHours.indexOf(String(r[0]).trim()) >= 0; })
+    .map(function (r) {
+      // r[2] is the phone number: deliberately not included.
+      return { slot: String(r[0]).trim(), name: String(r[1]) };
     });
   const creches = rows_(CRECHES).reduce(function (sum, r) {
     return sum + (Number(r[2]) || 0);
   }, 0);
 
-  const data = { ok: true, performances: performances, creches: creches };
+  const data = { ok: true, performances: performances, ushers: ushers, creches: creches };
   cache.put(CACHE_KEY, JSON.stringify(data), CACHE_SECONDS);
   return data;
 }
 
 // ---------- Writes (always called while holding the script lock) ----------
 
-// One signup can reserve several times. Each time becomes its own row, so the public read stays one-row-per-slot.
-// All-or-nothing: if any chosen time is already taken, nothing is saved and the taken times are returned.
-function addPerformance_(b) {
+// What differs between the two slot-based signups: which tab, which labels are valid, and the row layout.
+const PERFORMANCE_KIND = {
+  sheet: PERFORMANCES,
+  labels: function () { return slotLabels_(); },
+  row: function (slot, f) { return [slot, f.name, f.piece, f.phone, f.stamp]; },
+};
+const USHER_KIND = {
+  sheet: USHERS,
+  labels: function () { return hourLabels_(); },
+  row: function (slot, f) { return [slot, f.name, f.phone, f.stamp]; },
+};
+
+// One signup can reserve several slots. Each slot becomes its own row, so the public read stays one-row-per-slot.
+// All-or-nothing: if any chosen slot is already taken, nothing is saved and the taken slots are returned.
+function addSlots_(b, kind) {
   const requested = Array.isArray(b.slots) ? b.slots : [b.slot];
-  const valid = slotLabels_();
+  const valid = kind.labels();
   const slots = [];
   requested.forEach(function (s) {
     const slot = String(s || '').trim();
@@ -113,17 +139,14 @@ function addPerformance_(b) {
   });
   if (!slots.length || slots.some(function (s) { return valid.indexOf(s) < 0; })) return fail_('invalid');
 
-  const name = clean_(b.name, 80);
-  const piece = clean_(b.piece, 120);
-  const phone = phone_(b.phone);
-  if (!name || !phone) return fail_('invalid');
+  const fields = { name: clean_(b.name, 80), piece: clean_(b.piece, 120), phone: phone_(b.phone), stamp: now_() };
+  if (!fields.name || !fields.phone) return fail_('invalid');
 
-  const booked = rows_(PERFORMANCES).map(function (r) { return String(r[0]).trim(); });
+  const booked = rows_(kind.sheet).map(function (r) { return String(r[0]).trim(); });
   const taken = slots.filter(function (s) { return booked.indexOf(s) >= 0; });
   if (taken.length) return { ok: false, error: 'taken', taken: taken };
 
-  const stamp = now_();
-  saveRows_(PERFORMANCES, slots.map(function (slot) { return [slot, name, piece, phone, stamp]; }));
+  saveRows_(kind.sheet, slots.map(function (slot) { return kind.row(slot, fields); }));
   return { ok: true };
 }
 
@@ -160,6 +183,14 @@ function saveRows_(sheetName, rows) {
 function slotLabels_() {
   const labels = [];
   for (let m = FIRST_MIN; m < LAST_MIN; m += STEP_MIN) labels.push(label_(m));
+  return labels;
+}
+
+function hourLabels_() {
+  const labels = [];
+  for (let h = FIRST_MIN / 60; h < LAST_MIN / 60; h++) {
+    labels.push((h === 12 ? 'Noon' : String(h % 12)) + ' \u2013 ' + ((h + 1) % 12 || 12) + ' PM');
+  }
   return labels;
 }
 
