@@ -74,8 +74,14 @@
       { slot: '2:10 PM', name: 'Sample Piano Duo', piece: '' },
       { slot: '6:00 PM', name: 'Sample Youth Group', piece: 'Away in a Manger' },
     ];
-    const ushers = [{ slot: 'Noon – 1 PM', name: 'Sample Usher' }];
-    const slotLists = { performance: performances, usher: ushers }; // payload.type -> list
+    const ushers = [
+      { slot: 'Noon – 1 PM', name: 'Sample Usher' },
+      { slot: '1 – 2 PM', name: 'Sample Usher One' },
+      { slot: '1 – 2 PM', name: 'Sample Usher Two' },
+      { slot: '1 – 2 PM', name: 'Sample Usher Three' },
+    ];
+    // payload.type -> { list, per: how many entries a slot holds before it is full }
+    const slotLists = { performance: { list: performances, per: 1 }, usher: { list: ushers, per: 3 } };
     let creches = 3;
     const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const copy = (list) => list.map((item) => ({ ...item }));
@@ -86,9 +92,10 @@
       },
       async send(payload) {
         await wait(600);
-        const list = slotLists[payload.type];
-        if (list) {
-          const taken = payload.slots.filter((slot) => list.some((p) => p.slot === slot));
+        const target = slotLists[payload.type];
+        if (target) {
+          const { list, per } = target;
+          const taken = payload.slots.filter((slot) => list.filter((p) => p.slot === slot).length >= per);
           if (taken.length) return { ok: false, error: 'taken', taken };
           payload.slots.forEach((slot) => list.push({ slot, name: payload.name, piece: payload.piece || '' }));
         } else if (payload.type === 'creche') {
@@ -125,8 +132,9 @@
 
   /**
    * Builds one schedule inside `[data-picker="<type>"]`: rows of slots, a Sign up toggle on each open row,
-   * and a sticky "Continue" bar. Many slots can be chosen at once. `config` supplies the type, data key,
-   * slot groups and wording; the sign-up dialog below is shared.
+   * and a sticky "Continue" bar. Many slots can be chosen at once, and a slot holds `config.capacity`
+   * people before it is full. `config` supplies the type, data key, slot groups and wording; the sign-up
+   * dialog below is shared.
    */
   function createPicker(config) {
     const root = $(`[data-picker="${config.type}"]`);
@@ -145,13 +153,14 @@
     ui.empty.textContent = config.strings.empty;
 
     const allSlots = config.groups.flatMap((g) => g.slots);
-    const taken = new Map(); // slot label -> { name, piece }
+    const signups = new Map(); // slot label -> [{ name, piece }, ...] in sign-up order
     const selected = new Set(); // open slots the visitor has ticked, not yet reserved
     let onlyOpen = false;
     let firstRender = true;
 
     const sorted = () => allSlots.filter((s) => selected.has(s));
-    const openCount = () => allSlots.filter((s) => !taken.has(s)).length;
+    const spotsLeft = (slot) => config.capacity - (signups.get(slot) || []).length;
+    const openSpots = () => allSlots.reduce((n, s) => n + spotsLeft(s), 0);
 
     function paintSlotButton(button) {
       const slot = button.dataset.slot;
@@ -171,8 +180,9 @@
     }
 
     function renderSlot(slot, index) {
-      const entry = taken.get(slot);
-      const li = el('li', `slot ${entry ? 'is-taken' : 'is-open'}${firstRender ? ' reveal' : ''}`);
+      const entries = signups.get(slot) || [];
+      const left = spotsLeft(slot);
+      const li = el('li', `slot ${left > 0 ? 'is-open' : 'is-taken'}${firstRender ? ' reveal' : ''}`);
       li.dataset.slot = slot;
       li.tabIndex = -1;
       li.style.setProperty('--i', index);
@@ -181,15 +191,21 @@
       const who = el('span', 'slot-who');
       if (!state.loaded) {
         who.append(el('span', 'skeleton'));
-      } else if (entry) {
-        who.append(el('span', 'slot-name', entry.name));
-        if (entry.piece) who.append(el('span', 'slot-piece', entry.piece));
       } else {
-        const button = el('button', 'slot-btn');
-        button.type = 'button';
-        button.dataset.slot = slot;
-        who.append(button);
-        paintSlotButton(button);
+        for (const entry of entries) {
+          who.append(el('span', 'slot-name', entry.name));
+          if (entry.piece) who.append(el('span', 'slot-piece', entry.piece));
+        }
+        if (config.capacity > 1) {
+          who.append(el('span', 'slot-spots', left > 0 ? `${left} of ${config.capacity} spots open` : 'Full'));
+        }
+        if (left > 0) {
+          const button = el('button', 'slot-btn');
+          button.type = 'button';
+          button.dataset.slot = slot;
+          who.append(button);
+          paintSlotButton(button);
+        }
       }
       li.append(who);
       return li;
@@ -207,7 +223,7 @@
       let index = 0;
       let shown = 0;
       for (const { heading, slots } of config.groups) {
-        const visible = slots.filter((s) => !(state.loaded && onlyOpen && taken.has(s)));
+        const visible = slots.filter((s) => !(state.loaded && onlyOpen && spotsLeft(s) === 0));
         if (!visible.length) continue;
         const group = el('div', 'hour');
         if (heading) group.append(el('h3', null, heading));
@@ -221,8 +237,9 @@
       }
 
       if (state.loaded) {
-        const open = openCount();
-        ui.count.textContent = open ? config.strings.open(open, allSlots.length) : config.strings.full(allSlots.length);
+        const open = openSpots();
+        const total = allSlots.length * config.capacity;
+        ui.count.textContent = open ? config.strings.open(open, total) : config.strings.full(total);
         ui.empty.hidden = shown > 0;
       } else {
         ui.count.textContent = config.strings.loading;
@@ -245,18 +262,21 @@
       render,
       renderSelection,
 
-      /** Replace what's taken with the server's list; drop any chosen slot someone else just got. */
+      /** Replace who's signed up with the server's list; drop any chosen slot that just filled. */
       setTaken(list) {
-        taken.clear();
-        list.forEach((p) => taken.set(p.slot, { name: p.name, piece: p.piece }));
-        selected.forEach((slot) => taken.has(slot) && selected.delete(slot));
+        signups.clear();
+        list.forEach((p) => {
+          if (!signups.has(p.slot)) signups.set(p.slot, []);
+          signups.get(p.slot).push({ name: p.name, piece: p.piece });
+        });
+        selected.forEach((slot) => spotsLeft(slot) <= 0 && selected.delete(slot));
       },
       deselect(slots) {
         slots.forEach((slot) => selected.delete(slot));
       },
       /** After a successful save: show the new names right away and clear the choice. */
       reserve(slots, entry) {
-        slots.forEach((slot) => taken.set(slot, entry));
+        slots.forEach((slot) => signups.set(slot, [...(signups.get(slot) || []), entry]));
         selected.clear();
       },
       focusRow(slot) {
@@ -294,6 +314,7 @@
     type: 'performance',
     dataKey: 'performances',
     groups: TIME_GROUPS,
+    capacity: 1,
     filter: true,
     nouns: ['time', 'times'],
     strings: {
@@ -315,16 +336,17 @@
     type: 'usher',
     dataKey: 'ushers',
     groups: USHER_GROUPS,
+    capacity: 3,
     filter: false,
     nouns: ['hour', 'hours'],
     strings: {
       loading: 'Checking open hours…',
-      open: (open, total) => `${open} of ${total} hours still need someone`,
-      full: () => 'Every hour is covered. Thank you!',
-      empty: 'Every hour is covered. Thank you!',
+      open: (open, total) => `${open} of ${total} usher spots open`,
+      full: () => 'Every hour is full. Thank you!',
+      empty: 'Every hour is full. Thank you!',
     },
     dialog: {
-      lede: 'One person per hour. You will help make sure there is enough hot chocolate and look after the general needs of the event.',
+      lede: 'Up to three people can sign up for each hour. You will help make sure there is enough hot chocolate and look after the general needs of the event.',
       nameLabel: 'Your name',
       piece: false,
       notice: 'Your name will be shown publicly on this page.',
@@ -386,7 +408,7 @@
 
   const MESSAGES = {
     taken: (slots) =>
-      `Someone just took ${listFormat.format(slots)}. ${slots.length === 1 ? 'It is' : 'They are'} removed from your list.`,
+      `${listFormat.format(slots)} just filled up. ${slots.length === 1 ? 'It is' : 'They are'} removed from your list.`,
     network: () => "We couldn't reach the server. Check your connection and try again.",
     busy: () => 'Lots of people are signing up right now. Wait a few seconds and try again.',
     invalid: () => "Something in the form isn't valid. Check each field and try again.",

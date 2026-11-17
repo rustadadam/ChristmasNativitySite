@@ -118,17 +118,20 @@ function publicData_() {
 // What differs between the two slot-based signups: which tab, which labels are valid, and the row layout.
 const PERFORMANCE_KIND = {
   sheet: PERFORMANCES,
+  capacity: 1,
   labels: function () { return slotLabels_(); },
   row: function (slot, f) { return [slot, f.name, f.piece, f.phone, f.stamp]; },
 };
 const USHER_KIND = {
   sheet: USHERS,
+  capacity: 3,
   labels: function () { return hourLabels_(); },
   row: function (slot, f) { return [slot, f.name, f.phone, f.stamp]; },
 };
 
 // One signup can reserve several slots. Each slot becomes its own row, so the public read stays one-row-per-slot.
-// All-or-nothing: if any chosen slot is already taken, nothing is saved and the taken slots are returned.
+// A slot holds kind.capacity people (1 for performances, 3 for ushers). All-or-nothing: if any chosen slot is
+// already full, nothing is saved and the full slots are returned.
 function addSlots_(b, kind) {
   const requested = Array.isArray(b.slots) ? b.slots : [b.slot];
   const valid = kind.labels();
@@ -143,7 +146,9 @@ function addSlots_(b, kind) {
   if (!fields.name || !fields.phone) return fail_('invalid');
 
   const booked = rows_(kind.sheet).map(function (r) { return String(r[0]).trim(); });
-  const taken = slots.filter(function (s) { return booked.indexOf(s) >= 0; });
+  const taken = slots.filter(function (s) {
+    return booked.filter(function (b) { return b === s; }).length >= kind.capacity;
+  });
   if (taken.length) return { ok: false, error: 'taken', taken: taken };
 
   saveRows_(kind.sheet, slots.map(function (slot) { return kind.row(slot, fields); }));

@@ -280,8 +280,17 @@ dialog h2 { font-size: 1.85rem; }
   border-bottom: 2px dotted var(--rule);
 }
 
-.slot-who { flex: 0 1 auto; max-width: 62%; text-align: right; overflow-wrap: anywhere; }
+.slot-who {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 62%;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
 .slot-name { font-style: italic; color: var(--maroon-deep); }
+.slot-spots { margin: 0.15rem 0 0.2rem; font-size: 0.85rem; font-style: italic; color: var(--muted); }
 .slot-piece { display: block; font-size: 0.85rem; line-height: 1.35; color: var(--muted); }
 
 .slot-btn {
